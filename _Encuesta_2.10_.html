@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hackea tu cerebro - Encuesta interactiva</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
+            overflow-x: hidden;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+            width: 100%;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin-top: 20px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 1.2rem;
+        }
+        .question-container {
+            display: none;
+        }
+        .timer {
+            font-size: 2rem;
+            margin: 10px 0;
+        }
+        .chart-container {
+            width: 100%;
+            max-width: 600px;
+            margin: auto;
+        }
+        /* Media Queries */
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            .timer {
+                font-size: 1.5rem;
+            }
+            button {
+                padding: 8px 16px;
+                font-size: 1rem;
+            }
+        }
+        @media (max-width: 480px) {
+            .container {
+                padding: 10px;
+            }
+            .timer {
+                font-size: 1.2rem;
+            }
+            button {
+                padding: 6px 12px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Hackea tu cerebro</h1>
+        <p id="introText">Descubre qué tan buenos son tus hábitos de aprendizaje.</p>
+        <button onclick="startQuiz()">Iniciar encuesta</button>
+        <div class="question-container" id="quiz">
+            <p id="question"></p>
+            <div class="timer" id="timer">10</div>
+            <button onclick="answer('Sí')">Sí</button>
+            <button onclick="answer('En ocasiones')">En ocasiones</button>
+            <button onclick="answer('Nunca')">Nunca</button>
+            <p id="tip" style="display:none; color: yellow;"></p>
+        </div>
+        <div class="chart-container" id="chart-container" style="display:none;">
+            <canvas id="resultsChart" style="margin-top: 50px;"></canvas>
+        </div>
+        <p id="analysis" style="display:none; font-size: 18px; font-weight: bold;"></p>
+        <button id="downloadPdf" onclick="downloadPDF()" style="display:none;">Descargar PDF</button>
+    </div>
+    <script>
+        const questions = [
+            { text: "¿Repasas y practicas lo que aprendes para reforzar tu memoria?", tip: "Usa la técnica de repetición espaciada." },
+            { text: "¿Duermes al menos 7 horas cada noche para mejorar tu concentración y memoria?", tip: "Establece un horario fijo para dormir." },
+            { text: "¿Evitas estudiar con distracciones como el celular o redes sociales?", tip: "Usa el modo 'No molestar' en tu celular." },
+            { text: "¿Utilizas la técnica Pomodoro u otro método para organizar tu tiempo de estudio?", tip: "Estudia en bloques de 25 min + 5 min de descanso." },
+            { text: "¿Realizas actividad física regularmente para mejorar tu aprendizaje?", tip: "Prueba caminatas de 10 minutos o estiramientos." },
+            { text: "¿Intentas comprender lo que estudias en lugar de solo memorizarlo?", tip: "Explica lo que aprendes en palabras simples." },
+            { text: "¿Tomas apuntes de manera organizada con técnicas como Cornell o Feynman?", tip: "Divide la hoja en ideas clave y resumen." },
+            { text: "¿Utilizas asociaciones visuales, rimas o historias para recordar información?", tip: "Relaciona conceptos con dibujos y rimas." },
+            { text: "¿Alimentas tu cerebro con una dieta balanceada?", tip: "Incluye frutos secos, huevos y aguacate en tu dieta." },
+            { text: "¿Evitas el multitasking y te concentras en una sola tarea a la vez?", tip: "Usa la regla 'una cosa a la vez'." },
+            { text: "¿Haces pausas activas para mejorar tu enfoque?", tip: "Levántate cada 30-60 min para estirarte." },
+            { text: "¿Practicas el ayuno de dopamina evitando la sobrecarga digital?", tip: "Reduce redes sociales por 1-2 horas al día." },
+            { text: "¿Utilizas música instrumental o ruido blanco para mejorar tu concentración?", tip: "Escucha sonidos de la naturaleza o ruido blanco." },
+            { text: "¿Eres consciente de tu postura mientras estudias?", tip: "Ajusta tu silla y mantén la espalda recta." },
+            { text: "¿Te permites aprender con humor y creatividad?", tip: "Usa memes, juegos o videos educativos." }
+        ];
+        
+        let currentQuestion = 0;
+        let responses = [];
+        let timer;
+        
+        function startQuiz() {
+            document.getElementById("introText").style.display = "none"; // Ocultar el texto introductorio
+            document.querySelector("button").style.display = "none";
+            document.getElementById("quiz").style.display = "block";
+            showQuestion();
+        }
+
+        function showQuestion() {
+            if (currentQuestion < questions.length) {
+                document.getElementById("question").innerText = questions[currentQuestion].text;
+                document.getElementById("tip").style.display = "none";
+                startTimer(10);
+            } else {
+                showResults();
+            }
+        }
+
+        function startTimer(seconds) {
+            let remainingTime = seconds;
+            document.getElementById("timer").innerText = remainingTime;
+            timer = setInterval(() => {
+                remainingTime--;
+                document.getElementById("timer").innerText = remainingTime;
+                if (remainingTime <= 0) {
+                    clearInterval(timer);
+                    answer('Nunca');
+                }
+            }, 1000);
+        }
+
+        function answer(option) {
+            clearInterval(timer); // Detener el temporizador si se responde antes
+            responses.push({ question: questions[currentQuestion].text, response: option, tip: option !== 'Sí' ? questions[currentQuestion].tip : '' });
+            currentQuestion++;
+            showQuestion();
+        }
+
+        function showResults() {
+            document.getElementById("quiz").style.display = "none";
+            document.getElementById("chart-container").style.display = "block";
+            document.getElementById("downloadPdf").style.display = "block";
+            document.getElementById("introText").style.display = "none"; // Ocultar el texto introductorio al mostrar la gráfica
+            renderChart();
+            let siCount = responses.filter(r => r.response === "Sí").length;
+            let message = siCount >= 12 ? "💡 ¡Tienes hábitos de aprendizaje efectivos! Sigue así y sigue optimizando tu potencial." : "⚠ Es hora de mejorar tus hábitos. Pequeños cambios en tu rutina pueden hacer una gran diferencia en tu aprendizaje.";
+            document.getElementById("analysis").innerText = message;
+            document.getElementById("analysis").style.display = "block";
+        }
+
+        function renderChart() {
+            const siCount = responses.filter(r => r.response === "Sí").length;
+            const enOcasionesCount = responses.filter(r => r.response === "En ocasiones").length;
+            const nuncaCount = responses.filter(r => r.response === "Nunca").length;
+            
+            const ctx = document.getElementById('resultsChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Sí', 'En ocasiones', 'Nunca'],
+                    datasets: [{
+                        label: 'Respuestas',
+                        data: [siCount, enOcasionesCount, nuncaCount],
+                        backgroundColor: ['green', 'yellow', 'red'],
+                        borderColor: ['green', 'yellow', 'red'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { 
+                            beginAtZero: true 
+                        }
+                    }
+                }
+            });
+        }
+
+        function downloadPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(12); // Tamaño de fuente para el PDF
+            doc.text("Hackea tu cerebro", 20, 20); // Título en el PDF
+            let y = 30; // Inicia un poco más abajo para que haya espacio para el título
+            responses.forEach((response, index) => {
+                if (y > 270) {  // Si se llena la página, agregar una nueva
+                    doc.addPage();
+                    y = 20;
+                    doc.text("Hackea tu cerebro", 20, y);
+                    y += 10;
+                }
+                doc.text(response.question, 20, y);
+                y += 10;
+                doc.text(`Respuesta: ${response.response}`, 20, y);
+                y += 10;
+                if (response.tip) {
+                    doc.text(`Consejo: ${response.tip}`, 20, y);
+                    y += 10;
+                }
+                y += 15;  // Espacio entre las respuestas
+            });
+            doc.save("analisis_encuesta.pdf");
+        }
+    </script>
+</body>
+</html>
